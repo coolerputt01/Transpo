@@ -14,7 +14,7 @@ export const profiles: Profile[] = [
     email: "ada@example.com",
     phone: "08012345678",
     role: "buyer",
-    verificationStatus: "pending",
+    verification_status: "pending",
     walletBalance: 85000
   },
   {
@@ -23,7 +23,7 @@ export const profiles: Profile[] = [
     email: "seller@tokemstores.com",
     phone: "08109359665",
     role: "seller",
-    verificationStatus: "pending",
+    verification_status: "pending",
     walletBalance: 250000
   },
   {
@@ -32,7 +32,7 @@ export const profiles: Profile[] = [
     email: "driver@swiftlogistics.com",
     phone: "09087654321",
     role: "driver",
-    verificationStatus: "pending",
+    verification_status: "pending",
     walletBalance: 52000
   },
   {
@@ -41,7 +41,7 @@ export const profiles: Profile[] = [
     email: "storekeeper@safehold.ng",
     phone: "07044556677",
     role: "storekeeper",
-    verificationStatus: "pending",
+    verification_status: "pending",
     walletBalance: 41000
   }
 ];
