@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getStoredSession } from "@/components/app-shell";
-import { deliveries, formatCurrency, transactions } from "@/lib/mock-data";
+import { useSession } from "@/components/session-provider";
+import { fetchDeliveriesForProfile, fetchTransactionsForProfile } from "@/lib/supabase";
+import { formatCurrency } from "@/lib/mock-data";
 import { roleDashboardCopy } from "@/lib/routes";
-import type { UserRole } from "@/lib/types";
 import { StatusPill } from "@/components/status-pill";
+import type { Delivery, Transaction } from "@/lib/types";
 
 const actionLinks: Record<string, string> = {
   "Search seller": "/search/seller",
@@ -18,23 +19,62 @@ const actionLinks: Record<string, string> = {
   Withdraw: "/withdraw"
 };
 
+// StatusPill's `tone` prop currently supports "green" | "amber" | "blue" in your
+// existing code — check its definition and add "red" if it isn't there yet,
+// since disputed/failed states need to read as distinct from "pending".
+const deliveryTone: Record<Delivery["status"], "green" | "amber" | "blue" | "red"> = {
+  pending: "amber",
+  in_transit: "blue",
+  successful: "green",
+  failed: "red",
+  disputed: "red",
+  stored: "blue",
+  returned: "amber",
+  redelivery_planned: "amber"
+};
+
+const transactionTone: Record<Transaction["status"], "green" | "amber" | "blue" | "red"> = {
+  pending: "amber",
+  held: "amber",
+  released: "green",
+  failed: "red",
+  disputed: "red"
+};
+
+const verificationLabels: Record<string, string> = {
+  pending: "Pending",
+  verified: "Verified",
+  rejected: "Rejected"
+};
+
 export function RoleDashboard() {
-  const [role, setRole] = useState<UserRole>("buyer");
+  const { profile } = useSession();
+  const [deliveriesList, setDeliveriesList] = useState<Delivery[]>([]);
+  const [transactionsList, setTransactionsList] = useState<Transaction[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
-    setRole(getStoredSession().role);
-  }, []);
+    if (!profile) return;
+    let cancelled = false;
+    setLoadingData(true);
 
-  const copy = roleDashboardCopy[role];
-  const activeDeliveries = deliveries.filter((delivery) =>
-    role === "buyer"
-      ? delivery.buyer === "ada@example.com" || delivery.buyer.includes("buyer")
-      : role === "seller"
-        ? delivery.seller.includes("seller")
-        : role === "driver"
-          ? delivery.driver.includes("driver")
-          : delivery.storekeeper?.includes("storekeeper")
-  );
+    Promise.all([fetchDeliveriesForProfile(profile), fetchTransactionsForProfile(profile)]).then(
+      ([deliveriesResult, transactionsResult]) => {
+        if (cancelled) return;
+        setDeliveriesList(deliveriesResult);
+        setTransactionsList(transactionsResult);
+        setLoadingData(false);
+      }
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profile]);
+
+  if (!profile) return null;
+
+  const copy = roleDashboardCopy[profile.role];
 
   return (
     <section className="page-stack">
@@ -54,15 +94,15 @@ export function RoleDashboard() {
       <div className="metrics-grid">
         <article>
           <span>Wallet balance</span>
-          <strong>{formatCurrency(role === "seller" ? 250000 : role === "buyer" ? 85000 : 52000)}</strong>
+          <strong>{formatCurrency(profile.wallet_balance)}</strong>
         </article>
         <article>
           <span>Active deliveries</span>
-          <strong>{activeDeliveries.length}</strong>
+          <strong>{loadingData ? "..." : deliveriesList.length}</strong>
         </article>
         <article>
-          <span>Pending verification</span>
-          <strong>KYC/Keys</strong>
+          <span>Verification</span>
+          <strong>{verificationLabels[profile.verification_status]}</strong>
         </article>
       </div>
 
@@ -73,17 +113,21 @@ export function RoleDashboard() {
             <Link href="/transactions">View all</Link>
           </div>
           <div className="list">
-            {transactions.map((transaction) => (
+            {loadingData && <p className="helper">Loading transactions...</p>}
+            {!loadingData && transactionsList.length === 0 && (
+              <p className="helper">No transactions yet.</p>
+            )}
+            {transactionsList.map((transaction) => (
               <div className="list-row" key={transaction.id}>
                 <div>
-                  <strong>{transaction.id}</strong>
+                  <strong>{transaction.id.slice(0, 8)}</strong>
                   <small>
-                    {transaction.payer} to {transaction.recipient}
+                    {transaction.payer_email} to {transaction.recipient_email}
                   </small>
                 </div>
                 <div className="right">
                   <strong>{formatCurrency(transaction.amount)}</strong>
-                  <StatusPill label={transaction.status} tone={transaction.status === "released" ? "green" : "amber"} />
+                  <StatusPill label={transaction.status} tone={transactionTone[transaction.status]} />
                 </div>
               </div>
             ))}
@@ -96,13 +140,17 @@ export function RoleDashboard() {
             <Link href="/deliveries">Open</Link>
           </div>
           <div className="list">
-            {activeDeliveries.map((delivery) => (
+            {loadingData && <p className="helper">Loading deliveries...</p>}
+            {!loadingData && deliveriesList.length === 0 && (
+              <p className="helper">No deliveries yet.</p>
+            )}
+            {deliveriesList.map((delivery) => (
               <div className="list-row" key={delivery.id}>
                 <div>
                   <strong>{delivery.title}</strong>
-                  <small>{delivery.id}</small>
+                  <small>{delivery.id.slice(0, 8)}</small>
                 </div>
-                <StatusPill label={delivery.status} tone={delivery.status === "stored" ? "blue" : "amber"} />
+                <StatusPill label={delivery.status} tone={deliveryTone[delivery.status]} />
               </div>
             ))}
           </div>

@@ -1,51 +1,44 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { ReactNode, useMemo } from "react";
 import { navItems } from "@/lib/routes";
 import { roleLabels } from "@/lib/mock-data";
-import type { UserRole } from "@/lib/types";
+import { useSession } from "@/components/session-provider";
+import { signOutTranspoUser } from "@/lib/supabase";
 
-type StoredSession = {
-  name: string;
-  email: string;
-  phone: string;
-  role: UserRole;
+const verificationLabels: Record<string, string> = {
+  pending: "Pending",
+  verified: "Verified",
+  rejected: "Rejected"
 };
-
-const fallbackSession: StoredSession = {
-  name: "Victor Demo",
-  email: "victor@example.com",
-  phone: "08109359665",
-  role: "buyer"
-};
-
-export function getStoredSession(): StoredSession {
-  if (typeof window === "undefined") return fallbackSession;
-
-  const raw = window.localStorage.getItem("transpo-session");
-  if (!raw) return fallbackSession;
-
-  try {
-    return { ...fallbackSession, ...JSON.parse(raw) };
-  } catch {
-    return fallbackSession;
-  }
-}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const [session, setSession] = useState<StoredSession>(fallbackSession);
-
-  useEffect(() => {
-    setSession(getStoredSession());
-  }, []);
+  const router = useRouter();
+  const { profile, loading } = useSession();
 
   const visibleNav = useMemo(
-    () => navItems.filter((item) => item.roles.includes(session.role)),
-    [session.role]
+    () => (profile ? navItems.filter((item) => item.roles.includes(profile.role)) : []),
+    [profile]
   );
+
+  async function handleSwitchAccount() {
+    await signOutTranspoUser();
+    router.push("/auth");
+  }
+
+  if (loading) {
+    return (
+      <div className="shell shell-loading">
+        <p>Loading your workspace...</p>
+      </div>
+    );
+  }
+
+  // SessionProvider is already redirecting to /auth in this case
+  if (!profile) return null;
 
   return (
     <div className="shell">
@@ -59,10 +52,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Link>
 
         <div className="profile-mini">
-          <span>{session.name}</span>
-          <small>{session.email}</small>
-          <small>{session.phone}</small>
-          <strong>{roleLabels[session.role]}</strong>
+          <span>{profile.name}</span>
+          <small>{profile.email}</small>
+          <small>{profile.phone}</small>
+          <strong>{roleLabels[profile.role]}</strong>
         </div>
 
         <nav className="side-nav">
@@ -82,11 +75,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="topbar">
           <div>
             <span className="eyebrow">KYC/Keys verification</span>
-            <strong>Pending</strong>
+            <strong>{verificationLabels[profile.verification_status]}</strong>
           </div>
-          <Link href="/auth" className="button button-ghost">
+          <button className="button button-ghost" onClick={handleSwitchAccount} type="button">
             Switch account
-          </Link>
+          </button>
         </header>
         {children}
       </main>

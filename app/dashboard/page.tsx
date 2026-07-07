@@ -3,8 +3,8 @@ import { RoleDashboard } from "@/components/role-dashboard";
 
 export default function DashboardPage() {
   return (
-    <AppShell>
-      <RoleDashboard />
-    </AppShell>
+      <AppShell>
+        <RoleDashboard />
+      </AppShell>
   );
 }
